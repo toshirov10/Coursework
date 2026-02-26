@@ -6,207 +6,251 @@
     <title>Motor Effect Simulation - GCSE Physics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
-            color: white;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        header {
-            text-align: center;
-            padding: 20px 0;
-            margin-bottom: 30px;
-        }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-        
-        .subtitle {
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }
-        
-        .main-content {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .simulation-container {
-            flex: 1;
-            min-width: 300px;
-            height: 400px;
-            background-color: rgba(0, 0, 0, 0.4);
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .controls {
-            flex: 1;
-            min-width: 300px;
-            background-color: rgba(0, 0, 0, 0.4);
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .control-group {
-            margin-bottom: 20px;
-        }
-        
-        h2 {
-            font-size: 1.5rem;
-            margin-bottom: 15px;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-            padding-bottom: 5px;
-        }
-        
-        .slider-container {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        
-        input[type="range"] {
-            width: 100%;
-            margin-bottom: 5px;
-        }
-        
-        .value-display {
-            text-align: right;
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 25px;
-        }
-        
-        button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 5px;
-            background: linear-gradient(to right, #3494e6, #ec6ead);
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s, opacity 0.2s;
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
-        }
-        
-        .theory {
-            background-color: rgba(0, 0, 0, 0.4);
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .theory-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .theory-card {
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-        }
-        
-        .theory-card h3 {
-            margin-bottom: 10px;
-            color: #fdbb2d;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 20px;
-            opacity: 0.8;
-            font-size: 0.9rem;
-        }
-        
-        @media (max-width: 768px) {
-            .main-content {
-                flex-direction: column;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="main.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Startup Screen -->
+    <div class="startup-screen" id="startupScreen">
+        <h1 class="startup-title">3D Motor Effect Simulation</h1>
+        <p class="startup-subtitle">A GCSE Physics Interactive Demonstration</p>
+        
+        <div class="startup-buttons">
+            <button class="startup-btn" id="gotoMotorEffect">
+                <span class="icon">🧲</span>
+                Motor Effect Simulation
+                <span class="startup-description">Explore the force on a current-carrying wire in a magnetic field</span>
+            </button>
+            
+            <button class="startup-btn" id="gotoCommutator">
+                <span class="icon">⚙️</span>
+                Split Ring Commutator
+                <span class="startup-description">Learn how DC motors work with rotating commutators</span>
+            </button>
+            
+            <button class="startup-btn" id="gotoCalculator">
+                <span class="icon">🧮</span>
+                Force Calculator
+                <span class="startup-description">Calculate magnetic forces using F = BIL formula</span>
+            </button>
+            
+            <button class="startup-btn" id="gotoTheory">
+                <span class="icon">📚</span>
+                Physics Theory
+                <span class="startup-description">Understand Fleming's Left-Hand Rule and applications</span>
+            </button>
+        </div>
+        
+        <button class="skip-btn" id="skipToMain">Skip to Main Interface</button>
+    </div>
+
+    <div class="container" id="mainContent" style="display: none;">
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <button class="nav-btn" id="navMotorEffect">
+                <span>🧲</span> Motor Effect
+            </button>
+            <button class="nav-btn commutator" id="navCommutator">
+                <span>⚙️</span> Commutator
+            </button>
+            <button class="nav-btn" id="navCalculator">
+                <span>🧮</span> Calculator
+            </button>
+            <button class="nav-btn" id="navTheory">
+                <span>📚</span> Theory
+            </button>
+            <button class="nav-btn save" id="navSaveLoad">
+                <span>💾</span> Save/Load
+            </button>
+        </div>
+
+        <!-- Motor Effect Section -->
         <header>
             <h1>3D Motor Effect Simulation</h1>
-            <p class="subtitle">A GCSE Physics Interactive Demonstration</p>
         </header>
-        
-        <div class="main-content">
+        <div class="main-content" id="motorEffectSection">
             <div class="simulation-container" id="simulation">
-                <!-- Three.js will render here -->
+                <div class="simulation-controls">
+                    <button id="start-btn" class="sim-btn">
+                        <span>▶</span> Start Simulation
+                    </button>
+                    <button id="pause-btn" class="sim-btn">
+                        <span>⏸</span> Pause Simulation
+                    </button>
+                    <button id="reset-btn" class="sim-btn reset">
+                        <span>↺</span> Reset to Zero
+                    </button>
+                </div>
             </div>
             
-            <div class="controls">
-                <div class="control-group">
-                    <h2>Simulation Controls</h2>
-                    
-                    <div class="slider-container">
-                        <label for="current">Current (A)</label>
-                        <input type="range" id="current" min="0" max="10" step="0.5" value="5">
-                        <div class="value-display"><span id="current-value">5.0</span> A</div>
+            <div class="controls-and-calculator">
+                <div class="controls">
+                    <div class="control-group">
+                        <h2>Simulation Controls</h2>
+                        
+                        <div class="slider-container">
+                            <label for="current">Current (A)</label>
+                            <input type="range" id="current" min="0" max="100" step="1" value="5">
+                            <div class="value-display">
+                                <span>0 A</span>
+                                <span id="current-value">5</span>
+                            </div>
+                        </div>
+                        
+                        <div class="slider-container">
+                            <label for="field-strength">Magnetic Flux Density (T)</label>
+                            <input type="range" id="field-strength" min="0" max="100" step="1" value="5">
+                            <div class="value-display">
+                                <span>0 T</span>
+                                <span id="field-strength-value">5</span>
+                            </div>
+                        </div>
+                        
+                        <div class="slider-container">
+                            <label for="wire-length">Wire Length (m)</label>
+                            <input type="range" id="wire-length" min="0" max="100" step="1" value="10">
+                            <div class="value-display">
+                                <span>0 m</span>
+                                <span id="wire-length-value">10</span>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="slider-container">
-                        <label for="field-strength">Magnetic Field Strength (T)</label>
-                        <input type="range" id="field-strength" min="0" max="2" step="0.1" value="0.5">
-                        <div class="value-display"><span id="field-strength-value">0.5</span> T</div>
-                    </div>
-                    
-                    <div class="slider-container">
-                        <label for="wire-length">Wire Length (m)</label>
-                        <input type="range" id="wire-length" min="0.1" max="2" step="0.1" value="1">
-                        <div class="value-display"><span id="wire-length-value">1.0</span> m</div>
-                    </div>
-                </div>
-                
-                <div class="button-group">
-                    <button id="start-btn">Start Simulation</button>
-                    <button id="reset-btn">Reset</button>
                 </div>
             </div>
         </div>
-        
-        <div class="theory">
+
+        <!-- Calculator Section -->
+        <div class="calculator-section" id="calculatorSection" style="display: none;">
+            <div class="calculator-container">
+                <h2>Motor Force Calculator (F = B × I × L × sinθ)</h2>
+                <div class="advanced-calculator">
+                    <div class="calc-field">
+                        <label for="magneticField">Magnetic Field (B)</label>
+                        <input id="magneticField" type="number" step="any" placeholder="Enter value">
+                        <select id="bUnit" class="unit-select">
+                            <option value="T">Tesla (T)</option>
+                            <option value="mT">Millitesla (mT)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="calc-field">
+                        <label for="currentInput">Current (I)</label>
+                        <input id="currentInput" type="number" step="any" placeholder="Enter value">
+                        <select id="iUnit" class="unit-select">
+                            <option value="A">Ampere (A)</option>
+                            <option value="mA">Milliampere (mA)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="calc-field">
+                        <label for="length">Wire Length (L)</label>
+                        <input id="length" type="number" step="any" placeholder="Enter value">
+                        <select id="lUnit" class="unit-select">
+                            <option value="m">Meter (m)</option>
+                            <option value="cm">Centimeter (cm)</option>
+                            <option value="mm">Millimeter (mm)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="calc-field">
+                        <label for="angle">Angle (θ)</label>
+                        <input id="angle" type="number" step="any" value="90" min="0" max="180">
+                        <div class="calc-units">Degrees (°)</div>
+                    </div>
+                    
+                    <div class="calc-buttons">
+                        <button class="calc-btn reset" id="resetAdvancedBtn">Reset</button>
+                    </div>
+                    
+                    <div class="result-display">
+                        <div id="forceValue">Force will be displayed here</div>
+                        <div id="calculationSteps"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save/Load System -->
+        <div class="save-load-container" id="saveLoadSection" style="display: none;">
+            <h3>Save and Load Motor Configurations</h3>
+            <div class="save-load-controls">
+                <button class="save-load-btn" id="saveCurrentBtn">💾 Save Current Configuration</button>
+                <button class="save-load-btn load" id="loadDefaultBtn">📥 Load Default Configuration</button>
+                <button class="save-load-btn delete" id="clearAllBtn">🗑️ Clear All Saved</button>
+            </div>
+            
+            <div class="saved-configs" id="savedConfigsList">
+            </div>
+        </div>
+
+        <!-- Save Modal -->
+        <div class="save-modal" id="saveModal">
+            <div class="save-modal-content">
+                <h3>Save Configuration</h3>
+                <input type="text" id="configNameInput" class="save-modal-input" placeholder="Enter configuration name..." maxlength="30">
+                <div class="save-modal-buttons">
+                    <button class="save-modal-btn save" id="confirmSaveBtn">Save</button>
+                    <button class="save-modal-btn cancel" id="cancelSaveBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Split Ring Commutator Section -->
+        <div class="commutator-section" id="commutatorSection" style="display: none;">
+            <div class="commutator-container">
+                <div class="commutator-3d" id="commutator-simulation">
+                    <div class="commutator-controls">
+                        <button id="rotate-btn" class="commutator-btn">
+                            <span>⟳</span> Rotate Commutator
+                        </button>
+                        <button id="reverse-btn" class="commutator-btn">
+                            <span>↔</span> Reverse Current
+                        </button>
+                        <button id="stop-commutator-btn" class="commutator-btn stop">
+                            <span>⏹</span> Stop Rotation
+                        </button>
+                        <button id="reset-commutator-btn" class="commutator-btn reset">
+                            <span>↺</span> Reset Sliders
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="commutator-controls-panel">
+                    <div class="commutator-sliders">
+                        <h3>Commutator Controls</h3>
+                        
+                        <div class="commutator-slider-container">
+                            <label for="current-strength">Current Strength</label>
+                            <input type="range" id="current-strength" min="0" max="100" step="1" value="50">
+                            <div class="commutator-value-display">
+                                <span>0%</span>
+                                <span id="current-strength-value">50%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="commutator-slider-container">
+                            <label for="magnetic-field">Magnetic Field Strength</label>
+                            <input type="range" id="magnetic-field" min="0" max="100" step="1" value="50">
+                            <div class="commutator-value-display">
+                                <span>0%</span>
+                                <span id="magnetic-field-value">50%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="commutator-slider-container">
+                            <label for="coil-turns">Number of Coil Turns</label>
+                            <input type="range" id="coil-turns" min="0" max="100" step="1" value="50">
+                            <div class="commutator-value-display">
+                                <span>0%</span>
+                                <span id="coil-turns-value">50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theory Section -->
+        <div class="theory" id="theorySection" style="display: none;">
             <h2>Theory Behind the Motor Effect</h2>
             <div class="theory-content">
                 <div class="theory-card">
@@ -218,14 +262,32 @@
                 </div>
                 
                 <div class="theory-card">
+                    <h3>How the split ring commutator Works:</h3>
+                    <ul>
+                        <p>• Stationary Magnets: Stay fixed in position</p>
+                        <p>• Rotating Coil: Only the coil rotates between magnetic poles</p>
+                        <p>• Split Ring Commutator: Reverses current every half turn</p>
+                        <p>• Brushes: Maintain electrical contact with rotating commutator</p>
+                        <p>• Current Flow: Shown with animated particles</p>
+                    </ul>
+                    
+                    <p>Use the sliders to:</p>
+                    <ul>
+                        <p>• Adjust current strength</p>
+                        <p>• Change magnetic field strength</p>
+                        <p>• Control number of coil turns</p>
+                    </ul>
+                </div>
+                
+                <div class="theory-card">
                     <h3>Motor Effect Equation</h3>
                     <p>The magnitude of the force experienced by the conductor can be calculated using the formula:</p>
-                    <p style="text-align: center; font-size: 1.5rem; margin: 10px 0;">F = B × I × L</p>
+                    <div class="formula">F = B × I × L</div>
                     <p>Where:<br>
-                    F = Force (Newtons)<br>
-                    B = Magnetic flux density (Tesla)<br>
-                    I = Current (Amperes)<br>
-                    L = Length of conductor in field (meters)</p>
+                    <strong>F</strong> = Force (Newtons)<br>
+                    <strong>B</strong> = Magnetic flux density (Tesla)<br>
+                    <strong>I</strong> = Current (Amperes)<br>
+                    <strong>L</strong> = Length of conductor in field (meters)</p>
                 </div>
                 
                 <div class="theory-card">
@@ -239,230 +301,8 @@
                 </div>
             </div>
         </div>
-        
-        <footer>
-            <p>Created for A Level Computer Science Coursework | GCSE Physics Motor Effect Simulation</p>
-        </footer>
     </div>
 
-    <script>
-        // Initialize Three.js scene
-        let scene, camera, renderer, controls;
-        let wire, magneticField, forceArrow;
-        let currentValue = 5.0;
-        let fieldStrengthValue = 0.5;
-        let wireLengthValue = 1.0;
-        let isSimulationRunning = false;
-        
-        function init() {
-            // Create scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111125);
-            
-            // Create camera
-            camera = new THREE.PerspectiveCamera(75, 
-                document.getElementById('simulation').clientWidth / 
-                document.getElementById('simulation').clientHeight, 
-                0.1, 1000);
-            camera.position.set(3, 2, 5);
-            
-            // Create renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(
-                document.getElementById('simulation').clientWidth,
-                document.getElementById('simulation').clientHeight
-            );
-            document.getElementById('simulation').appendChild(renderer.domElement);
-            
-            // Add orbit controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(5, 10, 7);
-            scene.add(directionalLight);
-            
-            // Create coordinate axes
-            const axesHelper = new THREE.AxesHelper(2);
-            scene.add(axesHelper);
-            
-            // Create magnetic field representation
-            createMagneticField();
-            
-            // Create wire
-            createWire();
-            
-            // Create force arrow
-            createForceArrow();
-            
-            // Add labels to axes
-            addAxisLabels();
-            
-            // Handle window resize
-            window.addEventListener('resize', onWindowResize);
-            
-            // Start animation loop
-            animate();
-        }
-        
-        function createMagneticField() {
-            magneticField = new THREE.Group();
-            
-            // Create north and south poles
-            const northPoleGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-            const southPoleGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-            
-            const northPoleMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-            const southPoleMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
-            
-            const northPole = new THREE.Mesh(northPoleGeometry, northPoleMaterial);
-            const southPole = new THREE.Mesh(southPoleGeometry, southPoleMaterial);
-            
-            northPole.position.set(0, 0, -2);
-            southPole.position.set(0, 0, 2);
-            
-            magneticField.add(northPole);
-            magneticField.add(southPole);
-            
-            // Add magnetic field lines
-            for (let i = -1.5; i <= 1.5; i += 0.5) {
-                for (let j = -1.5; j <= 1.5; j += 0.5) {
-                    const fieldLine = new THREE.ArrowHelper(
-                        new THREE.Vector3(0, 0, 1),
-                        new THREE.Vector3(i, j, -1.5),
-                        3,
-                        0x00ff00,
-                        0.3,
-                        0.1
-                    );
-                    magneticField.add(fieldLine);
-                }
-            }
-            
-            scene.add(magneticField);
-        }
-        
-        function createWire() {
-            const wireGeometry = new THREE.CylinderGeometry(0.05, 0.05, wireLengthValue, 16);
-            const wireMaterial = new THREE.MeshPhongMaterial({ color: 0xffff00 });
-            
-            wire = new THREE.Mesh(wireGeometry, wireMaterial);
-            wire.rotation.x = Math.PI / 2;
-            wire.position.y = 0.5;
-            
-            // Add current direction indicator
-            const currentDirection = new THREE.ArrowHelper(
-                new THREE.Vector3(1, 0, 0),
-                new THREE.Vector3(-wireLengthValue/2, 0.5, 0),
-                0.5,
-                0xff6600,
-                0.2,
-                0.1
-            );
-            wire.add(currentDirection);
-            
-            scene.add(wire);
-        }
-        
-        function createForceArrow() {
-            forceArrow = new THREE.ArrowHelper(
-                new THREE.Vector3(0, 1, 0),
-                new THREE.Vector3(0, 0.5, 0),
-                0,
-                0xffffff,
-                0.3,
-                0.15
-            );
-            scene.add(forceArrow);
-        }
-        
-        function addAxisLabels() {
-            // This would typically be done with CSS or sprite text
-            // For simplicity, we'll skip detailed implementation in this example
-        }
-        
-        function onWindowResize() {
-            camera.aspect = document.getElementById('simulation').clientWidth / 
-                            document.getElementById('simulation').clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(
-                document.getElementById('simulation').clientWidth,
-                document.getElementById('simulation').clientHeight
-            );
-        }
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            controls.update();
-            
-            if (isSimulationRunning) {
-                // Calculate force using F = BIL
-                const forceMagnitude = fieldStrengthValue * currentValue * wireLengthValue;
-                
-                // Update force arrow
-                forceArrow.setLength(forceMagnitude, 0.3, 0.15);
-                
-                // Make arrow pulse for visibility
-                const pulse = 1 + 0.1 * Math.sin(Date.now() * 0.005);
-                forceArrow.scale.set(pulse, pulse, pulse);
-            }
-            
-            renderer.render(scene, camera);
-        }
-        
-        // Initialize the simulation
-        init();
-        
-        // Setup event listeners for controls
-        document.getElementById('current').addEventListener('input', function() {
-            currentValue = parseFloat(this.value);
-            document.getElementById('current-value').textContent = currentValue.toFixed(1);
-        });
-        
-        document.getElementById('field-strength').addEventListener('input', function() {
-            fieldStrengthValue = parseFloat(this.value);
-            document.getElementById('field-strength-value').textContent = fieldStrengthValue.toFixed(1);
-        });
-        
-        document.getElementById('wire-length').addEventListener('input', function() {
-            wireLengthValue = parseFloat(this.value);
-            document.getElementById('wire-length-value').textContent = wireLengthValue.toFixed(1);
-            
-            // Recreate wire with new length
-            scene.remove(wire);
-            createWire();
-        });
-        
-        document.getElementById('start-btn').addEventListener('click', function() {
-            isSimulationRunning = true;
-        });
-        
-        document.getElementById('reset-btn').addEventListener('click', function() {
-            isSimulationRunning = false;
-            forceArrow.setLength(0, 0.3, 0.15);
-            
-            // Reset sliders
-            document.getElementById('current').value = 5;
-            document.getElementById('field-strength').value = 0.5;
-            document.getElementById('wire-length').value = 1;
-            
-            currentValue = 5.0;
-            fieldStrengthValue = 0.5;
-            wireLengthValue = 1.0;
-            
-            document.getElementById('current-value').textContent = '5.0';
-            document.getElementById('field-strength-value').textContent = '0.5';
-            document.getElementById('wire-length-value').textContent = '1.0';
-            
-            // Recreate wire with default length
-            scene.remove(wire);
-            createWire();
-        });
-    </script>
+    <script src="script.js" defer></script>
 </body>
 </html>
