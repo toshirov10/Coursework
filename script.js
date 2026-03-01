@@ -18,23 +18,15 @@ const defaultConfig = {
         isRunning: false
     },
     commutator: {
-        rotationSpeed: 100,
-        coilAngle: 0,
         currentStrength: 50,
         magneticField: 50,
+        coilTurns: 50,
         isRotating: false,
         rotationDirection: 1
-    },
-    calculator: {
-        f: '',
-        q: '',
-        v: '',
-        b: ''
     }
 };
 
 // Memory management
-
 class MemoryManager {
     constructor() {
         this.disposableObjects = [];
@@ -54,7 +46,6 @@ class MemoryManager {
         
         this.isCleaning = true;
         
-        // Process cleanup queue
         this.cleanupQueue.forEach(obj => {
             try {
                 if (obj.parent) obj.parent.remove(obj);
@@ -98,12 +89,11 @@ class MemoryManager {
 const memoryManager = new MemoryManager();
 
 // 3D Simulation variables
-
 let scene, camera, renderer, controls;
 let wire, magneticField, forceArrow;
-let currentValue = 0;
-let fieldStrengthValue = 0;
-let wireLengthValue = 0;
+let currentValue = 5;
+let fieldStrengthValue = 5;
+let wireLengthValue = 10;
 let isSimulationRunning = false;
 
 // Commutator variables
@@ -112,23 +102,20 @@ let stationaryMagnets, rotatingParts, coil, splitRing;
 let brushPositive, brushNegative;
 let isCommutatorRotating = false;
 let rotationDirection = 1;
-let rotationSpeed = 1.0;
-let coilAngle = 0;
 let currentStrength = 0.5;
 let magneticFieldStrength = 0.5;
+let coilTurns = 0.5;
 
 // Animation frame ID for cleanup
 let animationFrameId = null;
 
-// Event delegation section
-
+// Event delegation
 class EventDelegator {
     constructor() {
         this.handlers = new Map();
     }
 
     setupGlobalListeners() {
-        // Single click handler for all buttons
         document.addEventListener('click', (e) => {
             const target = e.target.closest('button');
             if (!target) return;
@@ -141,7 +128,6 @@ class EventDelegator {
             }
         });
 
-        // Single input handler for all sliders
         document.addEventListener('input', (e) => {
             if (e.target.type === 'range') {
                 const id = e.target.id;
@@ -151,22 +137,34 @@ class EventDelegator {
                     handlers.forEach(handler => handler(e));
                 }
             }
+            
+            // Also handle calculator inputs for real-time calculation
+            if (e.target.id === 'magneticField' || e.target.id === 'currentInput' || 
+                e.target.id === 'length' || e.target.id === 'angle') {
+                calculateForceAdvanced();
+            }
         });
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            // Space to toggle simulation
-            if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+            if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && 
+                document.activeElement.tagName !== 'TEXTAREA') {
                 e.preventDefault();
                 toggleSimulation();
             }
             
-            // Escape to close modal
             if (e.code === 'Escape') {
                 const modal = document.getElementById('saveModal');
                 if (modal.classList.contains('active')) {
                     closeSaveModal();
                 }
+            }
+        });
+        
+        // Unit change listeners for calculator
+        ['bUnit', 'iUnit', 'lUnit'].forEach(unitId => {
+            const unitSelect = document.getElementById(unitId);
+            if (unitSelect) {
+                unitSelect.addEventListener('change', calculateForceAdvanced);
             }
         });
     }
@@ -181,8 +179,7 @@ class EventDelegator {
 
 const eventDelegator = new EventDelegator();
 
-// Webgl detection and fallback
-
+// WebGL detection and fallback
 function checkWebGLAvailability() {
     try {
         const canvas = document.createElement('canvas');
@@ -203,7 +200,6 @@ function checkWebGLAvailability() {
 }
 
 function init2DFallback() {
-    // Create 2D representation of motor effect
     const simulationContainer = document.getElementById('simulation');
     if (simulationContainer) {
         simulationContainer.innerHTML = `
@@ -240,15 +236,13 @@ function init2DFallback() {
     }
 }
 
-// 3D Simulation functions with memory management
-
+// 3D Simulation functions
 function init() {
     if (appState.is2DFallback) return;
     
     console.log("Initializing 3D simulation...");
     
     try {
-        // Create scene for motor effect
         scene = memoryManager.register(new THREE.Scene());
         scene.background = new THREE.Color(0x111125);
         
@@ -285,7 +279,6 @@ function init() {
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         
-        // Add optimized lights
         const ambientLight = memoryManager.register(new THREE.AmbientLight(0xffffff, 0.7));
         scene.add(ambientLight);
         
@@ -322,17 +315,16 @@ function createMagneticField() {
     
     magneticField = memoryManager.register(new THREE.Group());
     
-    // Create optimized magnetic poles with fewer polygons
     const poleGeometry = memoryManager.register(new THREE.BoxGeometry(0.8, 0.8, 0.8));
     const northMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0xff0000,
         emissive: 0x660000,
-        emissiveIntensity: 0.3
+        emissiveIntensity: Math.min(fieldStrengthValue / 50, 0.5)
     }));
     const southMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0x0000ff,
         emissive: 0x000066,
-        emissiveIntensity: 0.3
+        emissiveIntensity: Math.min(fieldStrengthValue / 50, 0.5)
     }));
     
     const northPole = memoryManager.register(new THREE.Mesh(poleGeometry, northMaterial));
@@ -342,13 +334,15 @@ function createMagneticField() {
     
     magneticField.add(northPole, southPole);
     
-    // Reduced number of field lines for performance
-    for (let i = -1; i <= 1; i += 0.8) {
-        for (let j = -1; j <= 1; j += 0.8) {
+    const fieldLineCount = Math.floor(4 + (fieldStrengthValue / 25));
+    const fieldLineLength = 2 + (fieldStrengthValue / 50);
+    
+    for (let i = -1; i <= 1; i += 1.6/fieldLineCount) {
+        for (let j = -1; j <= 1; j += 1.6/fieldLineCount) {
             const fieldLine = memoryManager.register(new THREE.ArrowHelper(
                 new THREE.Vector3(0, 0, 1),
                 new THREE.Vector3(i, j, -1.5),
-                3, 0x00ff00, 0.4, 0.2
+                fieldLineLength, 0x00ff00, 0.4, 0.2
             ));
             magneticField.add(fieldLine);
         }
@@ -363,24 +357,43 @@ function createWire() {
         scene.remove(wire);
     }
     
-    const displayLength = wireLengthValue / 5;
-    const wireGeometry = memoryManager.register(new THREE.CylinderGeometry(0.08, 0.08, displayLength, 12)); // Reduced segments
+    // Improved wire length visualization using logarithmic scaling
+    // This ensures wire length variations are visible across the full range
+    const minDisplayLength = 0.8;
+    const maxDisplayLength = 4.0;
+    
+    // Map wireLengthValue (0-100) to display length using logarithmic scale
+    let displayLength;
+    if (wireLengthValue <= 0) {
+        displayLength = 0.2;
+    } else {
+        // Logarithmic mapping: longer wires show diminishing returns in visual length
+        // but still show variation across the whole range
+        const logMin = Math.log10(1);
+        const logMax = Math.log10(101);
+        const logValue = Math.log10(wireLengthValue + 1);
+        const t = (logValue - logMin) / (logMax - logMin);
+        displayLength = minDisplayLength + t * (maxDisplayLength - minDisplayLength);
+    }
+    
+    const wireGeometry = memoryManager.register(new THREE.CylinderGeometry(0.08, 0.08, displayLength, 12));
+    
     const wireMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0xffff00,
         emissive: 0xffff00,
-        emissiveIntensity: 0.2
+        emissiveIntensity: Math.min(currentValue / 50, 0.8)
     }));
     
     wire = memoryManager.register(new THREE.Mesh(wireGeometry, wireMaterial));
     wire.rotation.x = Math.PI / 2;
     wire.position.y = 0.5;
     
-    const currentDirection = memoryManager.register(new THREE.ArrowHelper(
+    const currentArrow = memoryManager.register(new THREE.ArrowHelper(
         new THREE.Vector3(1, 0, 0),
         new THREE.Vector3(-displayLength / 2, 0.5, 0),
-        0.8, 0xff6600, 0.3, 0.15
+        0.5 + (currentValue / 100), 0xff6600, 0.3, 0.15
     ));
-    wire.add(currentDirection);
+    wire.add(currentArrow);
     
     scene.add(wire);
 }
@@ -399,44 +412,60 @@ function createForceArrow() {
     scene.add(forceArrow);
 }
 
-// Optimised animation loop
-
 let lastUpdateTime = 0;
-const UPDATE_INTERVAL = 1000 / 60; // 60 FPS
+const UPDATE_INTERVAL = 1000 / 60;
 
 function animate(currentTime = 0) {
     animationFrameId = requestAnimationFrame(animate);
     
-    // Throttle updates for performance
     const deltaTime = currentTime - lastUpdateTime;
     if (deltaTime < UPDATE_INTERVAL) return;
     
     lastUpdateTime = currentTime;
     
-    // Update motor effect simulation
     if (scene && camera && renderer) {
         controls.update();
         
         if (isSimulationRunning) {
             const forceMagnitude = fieldStrengthValue * currentValue * wireLengthValue;
-            const displayForce = Math.min(forceMagnitude / 500, 5);
+            
+            // Improved force visualization - no artificial cap
+            // Use logarithmic scaling for wide range (0 to 1,000,000)
+            let displayForce;
+            if (forceMagnitude <= 0) {
+                displayForce = 0;
+            } else if (forceMagnitude < 100) {
+                displayForce = forceMagnitude / 50; // Linear for small forces
+            } else {
+                // Logarithmic for large forces, but ensure it keeps increasing
+                displayForce = 2 + Math.log10(forceMagnitude / 10);
+            }
+            
+            // Clamp to reasonable visual range but ensure it doesn't cap artificially
+            displayForce = Math.min(Math.max(displayForce, 0.2), 6);
             
             if (forceArrow) {
                 forceArrow.setLength(displayForce, 0.4, 0.2);
                 const pulse = 1 + 0.2 * Math.sin(currentTime * 0.003);
                 forceArrow.scale.set(pulse, pulse, pulse);
+                
+                const hue = 0.6 - (Math.min(forceMagnitude / 10000, 0.6));
+                forceArrow.setColor(new THREE.Color().setHSL(hue, 1, 0.5));
             }
         }
         
         renderer.render(scene, camera);
     }
     
-    // Update commutator simulation
     if (commutatorScene && commutatorCamera && commutatorRenderer) {
         if (commutatorControls) commutatorControls.update();
         
         if (isCommutatorRotating && rotatingParts) {
-            rotatingParts.rotation.y += 0.02 * rotationDirection * rotationSpeed;
+            const baseSpeed = 0.01;
+            // Multiplicative effect: current × field × turns
+            const speedFactor = currentStrength * magneticFieldStrength * coilTurns * 8;
+            
+            rotatingParts.rotation.y += baseSpeed * rotationDirection * speedFactor;
             const rotationAngle = rotatingParts.rotation.y % (Math.PI * 2);
             updateBrushContact(rotationAngle);
         }
@@ -444,14 +473,12 @@ function animate(currentTime = 0) {
         commutatorRenderer.render(commutatorScene, commutatorCamera);
     }
     
-    // Periodic memory cleanup
-    if (currentTime % 5000 < 16) { // Every ~5 seconds
+    if (currentTime % 5000 < 16) {
         memoryManager.cleanup();
     }
 }
 
 // Commutator simulation
-
 function initCommutator() {
     if (appState.is2DFallback) return;
     
@@ -511,7 +538,6 @@ function initCommutator() {
 }
 
 function createGCSETextbookCommutator() {
-    // Clean up existing objects
     if (stationaryMagnets) {
         memoryManager.queueForCleanup(stationaryMagnets);
         commutatorScene.remove(stationaryMagnets);
@@ -521,10 +547,8 @@ function createGCSETextbookCommutator() {
         commutatorScene.remove(rotatingParts);
     }
     
-    // Create stationary magnets group
     stationaryMagnets = memoryManager.register(new THREE.Group());
     
-    // Create magnetic poles with optimized geometry
     const poleGeometry = memoryManager.register(new THREE.BoxGeometry(1.2, 3.0, 0.6));
     const northMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0xff0000,
@@ -544,10 +568,8 @@ function createGCSETextbookCommutator() {
     
     stationaryMagnets.add(northPole, southPole);
     
-    // Create rotating parts group
     rotatingParts = memoryManager.register(new THREE.Group());
     
-    // Create rotating coil
     coil = memoryManager.register(new THREE.Group());
     const coilWidth = 1.6;
     const coilHeight = 2.2;
@@ -559,7 +581,6 @@ function createGCSETextbookCommutator() {
         emissiveIntensity: 0.4 * currentStrength
     }));
     
-    // Create coil sides with shared geometry
     const sideGeometry = memoryManager.register(new THREE.BoxGeometry(wireThickness, coilHeight, wireThickness));
     const horizontalGeometry = memoryManager.register(new THREE.BoxGeometry(coilWidth, wireThickness, wireThickness));
     
@@ -577,7 +598,6 @@ function createGCSETextbookCommutator() {
     
     coil.add(leftSide, rightSide, topSide, bottomSide);
     
-    // Add connections to split ring
     const connectionMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0xffff00,
         emissive: 0xffff00,
@@ -595,10 +615,8 @@ function createGCSETextbookCommutator() {
     rightConnection.rotation.z = Math.PI / 2;
     
     coil.add(leftConnection, rightConnection);
-    coil.rotation.y = coilAngle * (Math.PI / 180);
     rotatingParts.add(coil);
     
-    // Create split ring commutator
     splitRing = memoryManager.register(new THREE.Group());
     const ringRadius = 0.5;
     const ringHeight = 0.3;
@@ -636,14 +654,12 @@ function createGCSETextbookCommutator() {
     splitRing.position.y = -coilHeight / 2 - 1.1;
     rotatingParts.add(splitRing);
     
-    // Add shaft
     const shaftGeometry = memoryManager.register(new THREE.CylinderGeometry(0.1, 0.1, 5, 8));
     const shaftMaterial = memoryManager.register(new THREE.MeshPhongMaterial({ color: 0x888888 }));
     const shaft = memoryManager.register(new THREE.Mesh(shaftGeometry, shaftMaterial));
     shaft.rotation.x = Math.PI / 2;
     rotatingParts.add(shaft);
     
-    // Create brushes
     const brushGeometry = memoryManager.register(new THREE.BoxGeometry(0.25, 0.25, 1.2));
     const brushMaterial = memoryManager.register(new THREE.MeshPhongMaterial({
         color: 0xcccccc,
@@ -661,10 +677,8 @@ function createGCSETextbookCommutator() {
     
     stationaryMagnets.add(brushPositive, brushNegative);
     
-    // Add current flow particles
     createCurrentFlowIndicators();
     
-    // Add both groups to the scene
     commutatorScene.add(stationaryMagnets);
     commutatorScene.add(rotatingParts);
 }
@@ -733,19 +747,23 @@ function updateBrushContact(angle) {
 }
 
 // Export/Import functions
-
 function exportConfiguration(config) {
-    const dataStr = JSON.stringify(config, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
-    const exportFileDefaultName = `motor-effect-config-${new Date().toISOString().slice(0,10)}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-    
-    showNotification('Configuration exported successfully!');
+    try {
+        const dataStr = JSON.stringify(config, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `motor-effect-config-${new Date().toISOString().slice(0,10)}.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        showNotification('Configuration exported successfully!', '#4CAF50');
+    } catch (error) {
+        console.error('Export failed:', error);
+        showNotification('Export failed: ' + error.message, '#ff416c');
+    }
 }
 
 function importConfiguration(event) {
@@ -756,15 +774,29 @@ function importConfiguration(event) {
     reader.onload = function(e) {
         try {
             const config = JSON.parse(e.target.result);
-            if (validateConfiguration(config)) {
+            
+            // Validate configuration
+            if (config && config.motorEffect && config.commutator) {
+                // Add to saved configurations
+                config.id = Date.now().toString();
+                config.date = new Date().toISOString();
+                
+                appState.savedConfigurations.unshift(config);
+                saveToLocalStorage();
+                displaySavedConfigurations();
+                
                 loadConfiguration(config);
-                showNotification('Configuration imported successfully!');
+                showNotification('Configuration imported successfully!', '#4CAF50');
             } else {
                 showNotification('Invalid configuration file', '#ff416c');
             }
         } catch (error) {
+            console.error('Import failed:', error);
             showNotification('Error reading configuration file', '#ff416c');
         }
+        
+        // Clear the file input
+        event.target.value = '';
     };
     reader.readAsText(file);
 }
@@ -774,11 +806,14 @@ function validateConfiguration(config) {
            config.motorEffect &&
            typeof config.motorEffect.current === 'number' &&
            typeof config.motorEffect.fieldStrength === 'number' &&
-           typeof config.motorEffect.wireLength === 'number';
+           typeof config.motorEffect.wireLength === 'number' &&
+           config.commutator &&
+           typeof config.commutator.currentStrength === 'number' &&
+           typeof config.commutator.magneticField === 'number' &&
+           typeof config.commutator.coilTurns === 'number';
 }
 
-// Utitlity functions
-
+// Utility functions
 function throttle(func, limit) {
     let inThrottle;
     return function() {
@@ -810,7 +845,6 @@ function onWindowResize() {
 }
 
 // UI Control functions
-
 function updateForceArrow() {
     if (appState.is2DFallback) {
         const forceMagnitude = fieldStrengthValue * currentValue * wireLengthValue;
@@ -822,10 +856,23 @@ function updateForceArrow() {
         return;
     }
     
-    const forceMagnitude = fieldStrengthValue * currentValue * wireLengthValue;
-    const displayForce = Math.min(forceMagnitude / 500, 5);
-    if (forceArrow) {
+    if (!isSimulationRunning && forceArrow) {
+        const forceMagnitude = fieldStrengthValue * currentValue * wireLengthValue;
+        
+        let displayForce;
+        if (forceMagnitude <= 0) {
+            displayForce = 0;
+        } else if (forceMagnitude < 100) {
+            displayForce = forceMagnitude / 50;
+        } else {
+            displayForce = 2 + Math.log10(forceMagnitude / 10);
+        }
+        
+        displayForce = Math.min(Math.max(displayForce, 0.2), 6);
         forceArrow.setLength(displayForce, 0.4, 0.2);
+        
+        const hue = 0.6 - (Math.min(forceMagnitude / 10000, 0.6));
+        forceArrow.setColor(new THREE.Color().setHSL(hue, 1, 0.5));
     }
 }
 
@@ -846,19 +893,16 @@ function toggleSimulation() {
 }
 
 // Calculator functions
-
 function calculateForceAdvanced() {
     const bValue = parseFloat(document.getElementById('magneticField').value);
-    const iValue = parseFloat(document.getElementById('current').value);
+    const iValue = parseFloat(document.getElementById('currentInput').value);
     const lValue = parseFloat(document.getElementById('length').value);
     const angle = parseFloat(document.getElementById('angle').value);
     
-    // Get selected units
     const bUnit = document.getElementById('bUnit').value;
     const iUnit = document.getElementById('iUnit').value;
     const lUnit = document.getElementById('lUnit').value;
 
-    // Unit conversion factors
     const unitConversions = {
         magneticField: {
             'T': 1,
@@ -875,22 +919,23 @@ function calculateForceAdvanced() {
         }
     };
 
-    // Validate inputs
+    // Check if any required fields are empty
     if (isNaN(bValue) || isNaN(iValue) || isNaN(lValue) || isNaN(angle)) {
         const forceValue = document.getElementById('forceValue');
         if (forceValue) {
-            forceValue.textContent = 'Please enter valid numbers for all fields';
-            forceValue.style.color = '#dc3545';
+            forceValue.textContent = 'Enter values in all fields to calculate force';
+            forceValue.style.color = '#ff9800';
         }
         const calculationSteps = document.getElementById('calculationSteps');
         if (calculationSteps) calculationSteps.textContent = '';
         return;
     }
 
-    if (bValue <= 0 || iValue <= 0 || lValue <= 0) {
+    // Allow zero values (they just result in zero force)
+    if (bValue < 0 || iValue < 0 || lValue < 0) {
         const forceValue = document.getElementById('forceValue');
         if (forceValue) {
-            forceValue.textContent = 'Values must be positive numbers';
+            forceValue.textContent = 'Values cannot be negative';
             forceValue.style.color = '#dc3545';
         }
         const calculationSteps = document.getElementById('calculationSteps');
@@ -898,21 +943,19 @@ function calculateForceAdvanced() {
         return;
     }
 
-    // Convert to base units (Tesla, Amperes, Meters)
     const bBase = bValue * unitConversions.magneticField[bUnit];
     const iBase = iValue * unitConversions.current[iUnit];
     const lBase = lValue * unitConversions.length[lUnit];
     
-    // Convert angle to radians for sine calculation
     const angleRad = angle * (Math.PI / 180);
     
-    // Calculate force using F = BILsinθ
     const force = bBase * iBase * lBase * Math.sin(angleRad);
     
-    // Display results
     const forceValue = document.getElementById('forceValue');
     if (forceValue) {
-        if (force < 1e-6) {
+        if (force === 0) {
+            forceValue.textContent = 'Force = 0 N';
+        } else if (force < 1e-6) {
             forceValue.textContent = `Force = ${force.toExponential(4)} N`;
         } else if (force < 0.01) {
             forceValue.textContent = `Force = ${(force * 1000).toFixed(6)} mN`;
@@ -925,7 +968,6 @@ function calculateForceAdvanced() {
         forceValue.style.color = '#28a745';
     }
     
-    // Show calculation steps
     const calculationSteps = document.getElementById('calculationSteps');
     if (calculationSteps) {
         calculationSteps.innerHTML = `
@@ -939,39 +981,9 @@ function calculateForceAdvanced() {
     }
 }
 
-function calculateForceSimple() {
-    const f = parseFloat(document.getElementById('f').value);
-    const q = parseFloat(document.getElementById('q').value);
-    const v = parseFloat(document.getElementById('v').value);
-    const b = parseFloat(document.getElementById('b').value);
-    
-    const values = [f, q, v, b];
-    const emptyCount = values.filter(val => isNaN(val)).length;
-    
-    if (emptyCount !== 1) {
-        alert('Please leave exactly one field empty to calculate.');
-        return;
-    }
-    
-    let result;
-    if (isNaN(f)) {
-        result = q * v * b;
-        document.getElementById('f').value = result.toFixed(2);
-    } else if (isNaN(q)) {
-        result = f / (v * b);
-        document.getElementById('q').value = result.toFixed(2);
-    } else if (isNaN(v)) {
-        result = f / (q * b);
-        document.getElementById('v').value = result.toFixed(2);
-    } else if (isNaN(b)) {
-        result = f / (q * v);
-        document.getElementById('b').value = result.toFixed(2);
-    }
-}
-
 function resetCalculatorAdvanced() {
     const magneticFieldInput = document.getElementById('magneticField');
-    const currentInput = document.getElementById('current');
+    const currentInput = document.getElementById('currentInput');
     const lengthInput = document.getElementById('length');
     const angleInput = document.getElementById('angle');
     
@@ -998,138 +1010,127 @@ function resetCalculatorAdvanced() {
     if (calculationSteps) calculationSteps.textContent = '';
 }
 
-function resetCalculatorSimple() {
-    document.getElementById('f').value = '';
-    document.getElementById('q').value = '';
-    document.getElementById('v').value = '';
-    document.getElementById('b').value = '';
-}
-
 // Save/Load system
-
 function saveConfiguration(name) {
-    const configuration = {
-        id: Date.now().toString(),
-        name: name,
-        date: new Date().toISOString(),
-        motorEffect: {
-            current: currentValue,
-            fieldStrength: fieldStrengthValue,
-            wireLength: wireLengthValue,
-            isRunning: isSimulationRunning
-        },
-        commutator: {
-            rotationSpeed: parseFloat(document.getElementById('rotation-speed').value),
-            coilAngle: parseFloat(document.getElementById('coil-angle').value),
-            currentStrength: parseFloat(document.getElementById('current-strength').value),
-            magneticField: parseFloat(document.getElementById('magnetic-field').value),
-            isRotating: isCommutatorRotating,
-            rotationDirection: rotationDirection
-        },
-        calculator: {
-            f: document.getElementById('f') ? document.getElementById('f').value : '',
-            q: document.getElementById('q') ? document.getElementById('q').value : '',
-            v: document.getElementById('v') ? document.getElementById('v').value : '',
-            b: document.getElementById('b') ? document.getElementById('b').value : ''
+    try {
+        const configuration = {
+            id: Date.now().toString(),
+            name: name,
+            date: new Date().toISOString(),
+            motorEffect: {
+                current: currentValue,
+                fieldStrength: fieldStrengthValue,
+                wireLength: wireLengthValue,
+                isRunning: isSimulationRunning
+            },
+            commutator: {
+                currentStrength: parseFloat(document.getElementById('current-strength').value),
+                magneticField: parseFloat(document.getElementById('magnetic-field').value),
+                coilTurns: parseFloat(document.getElementById('coil-turns').value),
+                isRotating: isCommutatorRotating,
+                rotationDirection: rotationDirection
+            }
+        };
+        
+        appState.savedConfigurations.unshift(configuration);
+        
+        // Keep only last 20 configurations to prevent storage issues
+        if (appState.savedConfigurations.length > 20) {
+            appState.savedConfigurations = appState.savedConfigurations.slice(0, 20);
         }
-    };
-    
-    appState.savedConfigurations.unshift(configuration);
-    appState.lastUsedConfig = configuration.id;
-    
-    saveToLocalStorage();
-    displaySavedConfigurations();
-    
-    showNotification(`Configuration "${name}" saved successfully!`);
+        
+        appState.lastUsedConfig = configuration.id;
+        
+        saveToLocalStorage();
+        displaySavedConfigurations();
+        
+        showNotification(`Configuration "${name}" saved successfully!`, '#4CAF50');
+    } catch (error) {
+        console.error('Save failed:', error);
+        showNotification('Save failed: ' + error.message, '#ff416c');
+    }
 }
 
 function loadConfiguration(config) {
-    // Load motor effect settings
-    if (config.motorEffect) {
-        document.getElementById('current').value = config.motorEffect.current;
-        document.getElementById('field-strength').value = config.motorEffect.fieldStrength;
-        document.getElementById('wire-length').value = config.motorEffect.wireLength;
-        
-        currentValue = config.motorEffect.current;
-        fieldStrengthValue = config.motorEffect.fieldStrength;
-        wireLengthValue = config.motorEffect.wireLength;
-        
-        document.getElementById('current-value').textContent = config.motorEffect.current;
-        document.getElementById('field-strength-value').textContent = config.motorEffect.fieldStrength;
-        document.getElementById('wire-length-value').textContent = config.motorEffect.wireLength;
-        
-        isSimulationRunning = config.motorEffect.isRunning || false;
-        
-        const startBtn = document.getElementById('start-btn');
-        if (isSimulationRunning) {
-            startBtn.innerHTML = '<span>▶</span> Running...';
-            startBtn.style.background = 'linear-gradient(to right, #00db7f, #00b370)';
-        } else {
-            startBtn.innerHTML = '<span>▶</span> Start Simulation';
-            startBtn.style.background = 'linear-gradient(to right, #00b4db, #0083b0)';
+    try {
+        // Load motor effect settings
+        if (config.motorEffect) {
+            document.getElementById('current').value = config.motorEffect.current;
+            document.getElementById('field-strength').value = config.motorEffect.fieldStrength;
+            document.getElementById('wire-length').value = config.motorEffect.wireLength;
+            
+            currentValue = config.motorEffect.current;
+            fieldStrengthValue = config.motorEffect.fieldStrength;
+            wireLengthValue = config.motorEffect.wireLength;
+            
+            document.getElementById('current-value').textContent = config.motorEffect.current;
+            document.getElementById('field-strength-value').textContent = config.motorEffect.fieldStrength;
+            document.getElementById('wire-length-value').textContent = config.motorEffect.wireLength;
+            
+            isSimulationRunning = config.motorEffect.isRunning || false;
+            
+            const startBtn = document.getElementById('start-btn');
+            if (isSimulationRunning) {
+                startBtn.innerHTML = '<span>▶</span> Running...';
+                startBtn.style.background = 'linear-gradient(to right, #00db7f, #00b370)';
+            } else {
+                startBtn.innerHTML = '<span>▶</span> Start Simulation';
+                startBtn.style.background = 'linear-gradient(to right, #00b4db, #0083b0)';
+            }
+            
+            if (!appState.is2DFallback) {
+                createMagneticField();
+                createWire();
+                updateForceArrow();
+            }
         }
         
-        if (!appState.is2DFallback) {
-            createWire();
-            updateForceArrow();
+        // Load commutator settings
+        if (config.commutator && !appState.is2DFallback) {
+            document.getElementById('current-strength').value = config.commutator.currentStrength || 50;
+            document.getElementById('magnetic-field').value = config.commutator.magneticField || 50;
+            document.getElementById('coil-turns').value = config.commutator.coilTurns || 50;
+            
+            currentStrength = (config.commutator.currentStrength || 50) / 100;
+            magneticFieldStrength = (config.commutator.magneticField || 50) / 100;
+            coilTurns = (config.commutator.coilTurns || 50) / 100;
+            isCommutatorRotating = config.commutator.isRotating || false;
+            rotationDirection = config.commutator.rotationDirection || 1;
+            
+            document.getElementById('current-strength-value').textContent = (config.commutator.currentStrength || 50) + '%';
+            document.getElementById('magnetic-field-value').textContent = (config.commutator.magneticField || 50) + '%';
+            document.getElementById('coil-turns-value').textContent = (config.commutator.coilTurns || 50) + '%';
+            
+            const rotateBtn = document.getElementById('rotate-btn');
+            if (isCommutatorRotating) {
+                rotateBtn.innerHTML = '<span>⟳</span> Rotating...';
+                rotateBtn.style.background = 'linear-gradient(to right, #4CAF50, #2E7D32)';
+            } else {
+                rotateBtn.innerHTML = '<span>⟳</span> Rotate Commutator';
+                rotateBtn.style.background = 'linear-gradient(to right, #ff9800, #ff5722)';
+            }
+            
+            document.getElementById('reverse-btn').innerHTML = '<span>↔</span> Reverse Current';
+            
+            if (commutatorScene) {
+                createGCSETextbookCommutator();
+            }
+            
+            if (isCommutatorRotating && brushPositive && brushNegative) {
+                const rotationAngle = rotatingParts ? rotatingParts.rotation.y % (Math.PI * 2) : 0;
+                updateBrushContact(rotationAngle);
+            }
         }
+        
+        showSection('motorEffect');
+        showNotification(`Loaded configuration "${config.name}"`, '#2196F3');
+    } catch (error) {
+        console.error('Load failed:', error);
+        showNotification('Load failed: ' + error.message, '#ff416c');
     }
-    
-    // Load commutator settings
-    if (config.commutator && !appState.is2DFallback) {
-        document.getElementById('rotation-speed').value = config.commutator.rotationSpeed;
-        document.getElementById('coil-angle').value = config.commutator.coilAngle;
-        document.getElementById('current-strength').value = config.commutator.currentStrength;
-        document.getElementById('magnetic-field').value = config.commutator.magneticField;
-        
-        rotationSpeed = config.commutator.rotationSpeed / 100;
-        coilAngle = config.commutator.coilAngle;
-        currentStrength = config.commutator.currentStrength / 100;
-        magneticFieldStrength = config.commutator.magneticField / 100;
-        isCommutatorRotating = config.commutator.isRotating || false;
-        rotationDirection = config.commutator.rotationDirection || 1;
-        
-        document.getElementById('rotation-speed-value').textContent = config.commutator.rotationSpeed + '%';
-        document.getElementById('coil-angle-value').textContent = config.commutator.coilAngle + '°';
-        document.getElementById('current-strength-value').textContent = config.commutator.currentStrength + '%';
-        document.getElementById('magnetic-field-value').textContent = config.commutator.magneticField + '%';
-        
-        const rotateBtn = document.getElementById('rotate-btn');
-        if (isCommutatorRotating) {
-            rotateBtn.innerHTML = '<span>⟳</span> Rotating...';
-            rotateBtn.style.background = 'linear-gradient(to right, #4CAF50, #2E7D32)';
-        } else {
-            rotateBtn.innerHTML = '<span>⟳</span> Rotate Commutator';
-            rotateBtn.style.background = 'linear-gradient(to right, #ff9800, #ff5722)';
-        }
-        
-        document.getElementById('reverse-btn').innerHTML = rotationDirection > 0 
-            ? '<span>↔</span> Clockwise' 
-            : '<span>↔</span> Counterclockwise';
-        
-        if (commutatorScene) {
-            createGCSETextbookCommutator();
-        }
-        
-        if (isCommutatorRotating && brushPositive && brushNegative) {
-            const rotationAngle = rotatingParts ? rotatingParts.rotation.y % (Math.PI * 2) : 0;
-            updateBrushContact(rotationAngle);
-        }
-    }
-    
-    // Load calculator settings
-    if (config.calculator) {
-        if (document.getElementById('f')) document.getElementById('f').value = config.calculator.f || '';
-        if (document.getElementById('q')) document.getElementById('q').value = config.calculator.q || '';
-        if (document.getElementById('v')) document.getElementById('v').value = config.calculator.v || '';
-        if (document.getElementById('b')) document.getElementById('b').value = config.calculator.b || '';
-    }
-    
-    showSection('motorEffect');
 }
 
-// Local storage function
-
+// Local storage functions
 function saveToLocalStorage() {
     try {
         const data = {
@@ -1151,24 +1152,13 @@ function loadSavedConfigurations() {
             const data = JSON.parse(saved);
             appState.savedConfigurations = data.configurations || [];
             appState.lastUsedConfig = data.lastUsed;
-            
-            if (appState.lastUsedConfig && appState.savedConfigurations.length > 0) {
-                const lastConfig = appState.savedConfigurations.find(c => c.id === appState.lastUsedConfig);
-                if (lastConfig) {
-                    setTimeout(() => {
-                        loadConfiguration(lastConfig);
-                        showNotification(`Welcome back! Loaded your last configuration: "${lastConfig.name}"`);
-                    }, 1000);
-                }
-            }
         }
     } catch (e) {
         console.warn('Could not load from localStorage:', e);
     }
 }
 
-// UI Management function
-
+// UI Management functions
 function hideStartupScreen() {
     const startupScreen = document.getElementById('startupScreen');
     const mainContent = document.getElementById('mainContent');
@@ -1178,7 +1168,6 @@ function hideStartupScreen() {
         startupScreen.style.display = 'none';
         mainContent.style.display = 'block';
         
-        // Check WebGL before initializing
         checkWebGLAvailability();
         
         if (!appState.is2DFallback) {
@@ -1186,6 +1175,19 @@ function hideStartupScreen() {
         }
         
         loadSavedConfigurations();
+        displaySavedConfigurations();
+        
+        // Auto-load last used configuration
+        if (appState.lastUsedConfig && appState.savedConfigurations.length > 0) {
+            const lastConfig = appState.savedConfigurations.find(c => c.id === appState.lastUsedConfig);
+            if (lastConfig) {
+                setTimeout(() => {
+                    loadConfiguration(lastConfig);
+                    showNotification(`Welcome back! Loaded your last configuration: "${lastConfig.name}"`);
+                }, 1000);
+            }
+        }
+        
         document.getElementById('motorEffectSection').style.display = 'flex';
         document.getElementById('calculatorSection').style.display = 'none';
         document.getElementById('commutatorSection').style.display = 'none';
@@ -1211,6 +1213,8 @@ function showSection(section) {
         case 'calculator':
             document.getElementById('calculatorSection').style.display = 'block';
             appState.currentSection = 'calculator';
+            // Trigger calculation if all fields have values
+            calculateForceAdvanced();
             break;
         case 'commutator':
             document.getElementById('commutatorSection').style.display = 'block';
@@ -1234,7 +1238,6 @@ function showSection(section) {
     }
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    showNotification(`Switched to ${section.replace(/([A-Z])/g, ' $1').trim()} section`);
 }
 
 function displaySavedConfigurations() {
@@ -1257,7 +1260,7 @@ function displaySavedConfigurations() {
         configElement.className = 'saved-config';
         configElement.innerHTML = `
             <div class="saved-config-header">
-                <div class="saved-config-name">${config.name}</div>
+                <div class="saved-config-name">${escapeHtml(config.name)}</div>
                 <div class="saved-config-date">${new Date(config.date).toLocaleDateString()}</div>
             </div>
             <div style="font-size: 0.9rem; opacity: 0.8;">
@@ -1273,6 +1276,16 @@ function displaySavedConfigurations() {
     });
 }
 
+// Helper function to escape HTML
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function closeSaveModal() {
     const saveModal = document.getElementById('saveModal');
     const configNameInput = document.getElementById('configNameInput');
@@ -1282,15 +1295,12 @@ function closeSaveModal() {
 }
 
 // Notification system
-
 function showNotification(message, color = '#00b4db') {
-    // Remove existing notification if it exists
     const existingNotification = document.querySelector('.floating-notification');
     if (existingNotification) {
         existingNotification.remove();
     }
     
-    // Create a notification element
     const notification = document.createElement('div');
     notification.textContent = message;
     notification.className = 'floating-notification';
@@ -1310,7 +1320,6 @@ function showNotification(message, color = '#00b4db') {
     
     document.body.appendChild(notification);
     
-    // Remove notification after 3 seconds
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => {
@@ -1321,8 +1330,7 @@ function showNotification(message, color = '#00b4db') {
     }, 3000);
 }
 
-// Event handler function
-
+// Event handler setup
 function setupEventHandlers() {
     // Startup screen buttons
     eventDelegator.register('gotoMotorEffect', () => {
@@ -1358,19 +1366,33 @@ function setupEventHandlers() {
     eventDelegator.register('current', (e) => {
         currentValue = parseFloat(e.target.value);
         document.getElementById('current-value').textContent = currentValue;
+        
+        if (!appState.is2DFallback && wire) {
+            wire.material.emissiveIntensity = Math.min(currentValue / 50, 0.8);
+        }
+        
         if (isSimulationRunning) updateForceArrow();
     });
     
     eventDelegator.register('field-strength', (e) => {
         fieldStrengthValue = parseFloat(e.target.value);
         document.getElementById('field-strength-value').textContent = fieldStrengthValue;
+        
+        if (!appState.is2DFallback) {
+            createMagneticField();
+        }
+        
         if (isSimulationRunning) updateForceArrow();
     });
     
     eventDelegator.register('wire-length', (e) => {
         wireLengthValue = parseFloat(e.target.value);
         document.getElementById('wire-length-value').textContent = wireLengthValue;
-        if (!appState.is2DFallback) createWire();
+        
+        if (!appState.is2DFallback) {
+            createWire();
+        }
+        
         if (isSimulationRunning) updateForceArrow();
     });
     
@@ -1386,43 +1408,33 @@ function setupEventHandlers() {
     
     eventDelegator.register('reset-btn', () => {
         isSimulationRunning = false;
-        document.getElementById('current').value = 0;
-        document.getElementById('field-strength').value = 0;
-        document.getElementById('wire-length').value = 0;
+        document.getElementById('current').value = 5;
+        document.getElementById('field-strength').value = 5;
+        document.getElementById('wire-length').value = 10;
         
-        currentValue = 0;
-        fieldStrengthValue = 0;
-        wireLengthValue = 0;
+        currentValue = 5;
+        fieldStrengthValue = 5;
+        wireLengthValue = 10;
         
-        document.getElementById('current-value').textContent = '0';
-        document.getElementById('field-strength-value').textContent = '0';
-        document.getElementById('wire-length-value').textContent = '0';
+        document.getElementById('current-value').textContent = '5';
+        document.getElementById('field-strength-value').textContent = '5';
+        document.getElementById('wire-length-value').textContent = '10';
         
         const startBtn = document.getElementById('start-btn');
         startBtn.innerHTML = '<span>▶</span> Start Simulation';
         startBtn.style.background = 'linear-gradient(to right, #00b4db, #0083b0)';
         
         if (!appState.is2DFallback) {
+            createMagneticField();
             createWire();
             createForceArrow();
             if (controls) controls.reset();
         }
         
-        showNotification('All values reset to 0!', '#ff416c');
+        showNotification('Values reset to defaults!', '#00b4db');
     });
     
     // Commutator controls
-    eventDelegator.register('rotation-speed', (e) => {
-        rotationSpeed = parseFloat(e.target.value) / 100;
-        document.getElementById('rotation-speed-value').textContent = e.target.value + '%';
-    });
-    
-    eventDelegator.register('coil-angle', (e) => {
-        coilAngle = parseFloat(e.target.value);
-        document.getElementById('coil-angle-value').textContent = e.target.value + '°';
-        if (rotatingParts) rotatingParts.rotation.y = coilAngle * (Math.PI / 180);
-    });
-    
     eventDelegator.register('current-strength', (e) => {
         currentStrength = parseFloat(e.target.value) / 100;
         document.getElementById('current-strength-value').textContent = e.target.value + '%';
@@ -1434,6 +1446,14 @@ function setupEventHandlers() {
     eventDelegator.register('magnetic-field', (e) => {
         magneticFieldStrength = parseFloat(e.target.value) / 100;
         document.getElementById('magnetic-field-value').textContent = e.target.value + '%';
+        if (commutatorScene) {
+            createGCSETextbookCommutator();
+        }
+    });
+    
+    eventDelegator.register('coil-turns', (e) => {
+        coilTurns = parseFloat(e.target.value) / 100;
+        document.getElementById('coil-turns-value').textContent = e.target.value + '%';
         if (commutatorScene) {
             createGCSETextbookCommutator();
         }
@@ -1457,13 +1477,9 @@ function setupEventHandlers() {
     eventDelegator.register('reverse-btn', () => {
         rotationDirection *= -1;
         const reverseBtn = document.getElementById('reverse-btn');
-        reverseBtn.innerHTML = rotationDirection > 0 
-            ? '<span>↔</span> Clockwise' 
-            : '<span>↔</span> Counterclockwise';
+        reverseBtn.innerHTML = '<span>↔</span> Reverse Current';
         
-        showNotification(rotationDirection > 0 
-            ? 'Direction changed to Clockwise' 
-            : 'Direction changed to Counterclockwise');
+        showNotification('Current direction reversed');
     });
     
     eventDelegator.register('stop-commutator-btn', () => {
@@ -1479,28 +1495,25 @@ function setupEventHandlers() {
     });
     
     eventDelegator.register('reset-commutator-btn', () => {
-        document.getElementById('rotation-speed').value = 100;
-        document.getElementById('coil-angle').value = 0;
         document.getElementById('current-strength').value = 50;
         document.getElementById('magnetic-field').value = 50;
+        document.getElementById('coil-turns').value = 50;
         
-        rotationSpeed = 1.0;
-        coilAngle = 0;
         currentStrength = 0.5;
         magneticFieldStrength = 0.5;
+        coilTurns = 0.5;
         isCommutatorRotating = false;
         rotationDirection = 1;
         
-        document.getElementById('rotation-speed-value').textContent = '100%';
-        document.getElementById('coil-angle-value').textContent = '0°';
         document.getElementById('current-strength-value').textContent = '50%';
         document.getElementById('magnetic-field-value').textContent = '50%';
+        document.getElementById('coil-turns-value').textContent = '50%';
         
         const rotateBtn = document.getElementById('rotate-btn');
         rotateBtn.innerHTML = '<span>⟳</span> Rotate Commutator';
         rotateBtn.style.background = 'linear-gradient(to right, #ff9800, #ff5722)';
         
-        document.getElementById('reverse-btn').innerHTML = '<span>↔</span> Clockwise';
+        document.getElementById('reverse-btn').innerHTML = '<span>↔</span> Reverse Current';
         
         if (commutatorScene) {
             createGCSETextbookCommutator();
@@ -1532,6 +1545,7 @@ function setupEventHandlers() {
     });
     
     eventDelegator.register('cancelSaveBtn', closeSaveModal);
+    
     eventDelegator.register('loadDefaultBtn', () => {
         loadConfiguration(defaultConfig);
         showNotification('Loaded default configuration');
@@ -1540,71 +1554,39 @@ function setupEventHandlers() {
     eventDelegator.register('clearAllBtn', () => {
         if (confirm('Are you sure you want to delete ALL saved configurations? This cannot be undone.')) {
             appState.savedConfigurations = [];
+            appState.lastUsedConfig = null;
             saveToLocalStorage();
             displaySavedConfigurations();
             showNotification('All configurations cleared');
         }
     });
     
-    // Export button 
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'save-load-btn';
-    exportBtn.id = 'exportConfigBtn';
-    exportBtn.innerHTML = '📤 Export Current';
-    const saveLoadControls = document.querySelector('.save-load-controls');
-    if (saveLoadControls) {
-        saveLoadControls.appendChild(exportBtn);
-        eventDelegator.register('exportConfigBtn', () => {
-            const currentConfig = {
-                id: 'export-' + Date.now(),
-                name: `Export-${new Date().toISOString().slice(0,10)}`,
-                date: new Date().toISOString(),
-                motorEffect: {
-                    current: currentValue,
-                    fieldStrength: fieldStrengthValue,
-                    wireLength: wireLengthValue,
-                    isRunning: isSimulationRunning
-                },
-                commutator: {
-                    rotationSpeed: parseFloat(document.getElementById('rotation-speed').value),
-                    coilAngle: parseFloat(document.getElementById('coil-angle').value),
-                    currentStrength: parseFloat(document.getElementById('current-strength').value),
-                    magneticField: parseFloat(document.getElementById('magnetic-field').value),
-                    isRotating: isCommutatorRotating,
-                    rotationDirection: rotationDirection
-                },
-                calculator: {
-                    f: document.getElementById('f') ? document.getElementById('f').value : '',
-                    q: document.getElementById('q') ? document.getElementById('q').value : '',
-                    v: document.getElementById('v') ? document.getElementById('v').value : '',
-                    b: document.getElementById('b') ? document.getElementById('b').value : ''
-                }
-            };
-            
-            exportConfiguration(currentConfig);
-        });
-    }
+    eventDelegator.register('exportConfigBtn', () => {
+        const currentConfig = {
+            id: 'export-' + Date.now(),
+            name: `Export-${new Date().toISOString().slice(0,10)}`,
+            date: new Date().toISOString(),
+            motorEffect: {
+                current: currentValue,
+                fieldStrength: fieldStrengthValue,
+                wireLength: wireLengthValue,
+                isRunning: isSimulationRunning
+            },
+            commutator: {
+                currentStrength: parseFloat(document.getElementById('current-strength').value),
+                magneticField: parseFloat(document.getElementById('magnetic-field').value),
+                coilTurns: parseFloat(document.getElementById('coil-turns').value),
+                isRotating: isCommutatorRotating,
+                rotationDirection: rotationDirection
+            }
+        };
+        
+        exportConfiguration(currentConfig);
+    });
     
-    // Import function
-    const importInput = document.createElement('input');
-    importInput.type = 'file';
-    importInput.accept = '.json';
-    importInput.style.display = 'none';
-    importInput.id = 'importFileInput';
-    document.body.appendChild(importInput);
-    
-    const importBtn = document.createElement('button');
-    importBtn.className = 'save-load-btn load';
-    importBtn.id = 'importConfigBtn';
-    importBtn.innerHTML = '📥 Import Configuration';
-    if (saveLoadControls) {
-        saveLoadControls.appendChild(importBtn);
-        eventDelegator.register('importConfigBtn', () => {
-            document.getElementById('importFileInput').click();
-        });
-    }
-    
-    importInput.addEventListener('change', importConfiguration);
+    eventDelegator.register('importConfigBtn', () => {
+        document.getElementById('importFileInput').click();
+    });
     
     // Scroll to top
     eventDelegator.register('scrollToTopBtn', () => {
@@ -1630,12 +1612,14 @@ function setupEventHandlers() {
             
             if (target.classList.contains('load')) {
                 loadConfiguration(config);
-                showNotification(`Loaded configuration "${config.name}"`);
             } else if (target.classList.contains('export')) {
                 exportConfiguration(config);
             } else if (target.classList.contains('delete')) {
                 if (confirm(`Delete configuration "${config.name}"?`)) {
                     appState.savedConfigurations = appState.savedConfigurations.filter(c => c.id !== configId);
+                    if (appState.lastUsedConfig === configId) {
+                        appState.lastUsedConfig = null;
+                    }
                     saveToLocalStorage();
                     displaySavedConfigurations();
                     showNotification(`Configuration "${config.name}" deleted`);
@@ -1644,158 +1628,32 @@ function setupEventHandlers() {
         }
     });
     
-    // Calculator enter key support for simple calculator
-    const simpleCalculatorInputs = document.querySelectorAll('.horizontal-calculator input');
-    if (simpleCalculatorInputs.length > 0) {
-        simpleCalculatorInputs.forEach(input => {
-            input.addEventListener('keyup', function(e) {
-                if (e.key === 'Enter') calculateForceSimple();
-            });
-        });
-    }
-    
     // Auto-save before unload
     window.addEventListener('beforeunload', () => {
         if (appState.savedConfigurations.length > 0) {
             saveToLocalStorage();
         }
         
-        // Clean up animation frame
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
         
-        // Clean up Three.js resources
         memoryManager.clearAll();
     });
+    
+    // Import file input change handler
+    document.getElementById('importFileInput').addEventListener('change', importConfiguration);
 }
 
-// Accessibility improvements
-
-function enhanceAccessibility() {
-    // Add ARIA labels to all interactive elements
-    const elements = [
-        { selector: '#gotoMotorEffect', label: 'Go to Motor Effect Simulation' },
-        { selector: '#gotoCommutator', label: 'Go to Split Ring Commutator' },
-        { selector: '#gotoCalculator', label: 'Go to Force Calculator' },
-        { selector: '#gotoTheory', label: 'Go to Physics Theory' },
-        { selector: '#skipToMain', label: 'Skip to Main Interface' },
-        { selector: '#navMotorEffect', label: 'Navigate to Motor Effect' },
-        { selector: '#navCommutator', label: 'Navigate to Commutator' },
-        { selector: '#navCalculator', label: 'Navigate to Calculator' },
-        { selector: '#navTheory', label: 'Navigate to Theory' },
-        { selector: '#navSaveLoad', label: 'Navigate to Save/Load' },
-        { selector: '#start-btn', label: 'Start Simulation' },
-        { selector: '#pause-btn', label: 'Pause Simulation' },
-        { selector: '#reset-btn', label: 'Reset to Zero' },
-        { selector: '#rotate-btn', label: 'Rotate Commutator' },
-        { selector: '#reverse-btn', label: 'Reverse Direction' },
-        { selector: '#stop-commutator-btn', label: 'Stop Rotation' },
-        { selector: '#reset-commutator-btn', label: 'Reset Sliders' },
-        { selector: '#saveCurrentBtn', label: 'Save Current Configuration' },
-        { selector: '#loadDefaultBtn', label: 'Load Default Configuration' },
-        { selector: '#clearAllBtn', label: 'Clear All Saved Configurations' }
-    ];
-    
-    elements.forEach(({ selector, label }) => {
-        const element = document.querySelector(selector);
-        if (element) {
-            element.setAttribute('aria-label', label);
-        }
-    });
-    
-    // Add role attributes
-    document.querySelectorAll('button').forEach(btn => {
-        btn.setAttribute('role', 'button');
-    });
-    
-    // Add keyboard navigation hints
-    document.querySelectorAll('.startup-btn, .nav-btn, .sim-btn, .commutator-btn').forEach(btn => {
-        btn.setAttribute('tabindex', '0');
-    });
-}
-
-// Calculator event handlers
-
-// Simple calculator (F = QvB) event handlers
-eventDelegator.register('calculateSimpleBtn', calculateForceSimple);
-eventDelegator.register('resetSimpleBtn', resetCalculatorSimple);
-
-// Advanced calculator (F = BILsinθ) event handlers  
-eventDelegator.register('calculateAdvancedBtn', calculateForceAdvanced);
+// Calculator reset button handler
 eventDelegator.register('resetAdvancedBtn', resetCalculatorAdvanced);
 
-// Update the showSection function to show both calculators
-const originalShowSection = window.showSection;
-window.showSection = function(section) {
-    originalShowSection(section);
-    
-    // Also hide/show the advanced calculator
-    const advancedCalc = document.getElementById('advancedCalculatorSection');
-    const simpleCalc = document.getElementById('calculatorSection');
-    
-    if (section === 'calculator') {
-        if (advancedCalc) advancedCalc.style.display = 'block';
-        if (simpleCalc) simpleCalc.style.display = 'block';
-    }
-};
-
-// Calculator tab switching
-
-function setupCalculatorTabs() {
-    const tabs = document.querySelectorAll('.calculator-tab');
-    const contents = document.querySelectorAll('.calculator-content');
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Remove active class from all tabs and contents
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-            
-            // Add active class to clicked tab and corresponding content
-            tab.classList.add('active');
-            const calcType = tab.getAttribute('data-calc');
-            document.getElementById(`${calcType}CalculatorContent`).classList.add('active');
-        });
-    });
-}
-
-// Add calculator tab switching to event delegation
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('calculator-tab')) {
-        // Remove active class from all tabs
-        document.querySelectorAll('.calculator-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // Remove active class from all contents
-        document.querySelectorAll('.calculator-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        
-        // Add active class to clicked tab
-        e.target.classList.add('active');
-        
-        // Show corresponding content
-        const calcType = e.target.getAttribute('data-calc');
-        document.getElementById(`${calcType}CalculatorContent`).classList.add('active');
-    }
-});
-
-// Initilising
-
+// Initialization
 document.addEventListener('DOMContentLoaded', function() {
     console.log("GCSE Physics Motor Effect Simulation loaded");
     
-    // Setup event handlers
     eventDelegator.setupGlobalListeners();
     setupEventHandlers();
-    
-    // Setup calculator tabs
-    setupCalculatorTabs();
-    
-    // Enhance accessibility
-    enhanceAccessibility();
     
     // Add animation styles if not present
     if (!document.querySelector('#animations')) {
@@ -1814,48 +1672,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.head.appendChild(style);
     }
 });
-    
-    // Setup advanced calculator event listeners if it exists
-    const calculateBtn = document.getElementById('calculateBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    
-    if (calculateBtn && resetBtn) {
-        calculateBtn.addEventListener('click', calculateForceAdvanced);
-        resetBtn.addEventListener('click', resetCalculatorAdvanced);
-        
-        // Add real-time calculation on input change
-        const inputs = ['magneticField', 'current', 'length', 'angle'];
-        inputs.forEach(inputId => {
-            const input = document.getElementById(inputId);
-            if (input) {
-                input.addEventListener('input', function() {
-                    if (document.getElementById('magneticField').value && 
-                        document.getElementById('current').value && 
-                        document.getElementById('length').value && 
-                        document.getElementById('angle').value) {
-                        calculateForceAdvanced();
-                    }
-                });
-            }
-        });
-        
-        // Add unit change listeners
-        ['bUnit', 'iUnit', 'lUnit'].forEach(unitId => {
-            const unitSelect = document.getElementById(unitId);
-            if (unitSelect) {
-                unitSelect.addEventListener('change', function() {
-                    if (document.getElementById('magneticField').value || 
-                        document.getElementById('current').value || 
-                        document.getElementById('length').value) {
-                        calculateForceAdvanced();
-                    }
-                });
-            }
-        });
-    }
 
 // Global exports for debugging
-
 window.MotorEffectSimulation = {
     appState,
     memoryManager,

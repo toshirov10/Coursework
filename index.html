@@ -77,7 +77,7 @@
                         <span>⏸</span> Pause Simulation
                     </button>
                     <button id="reset-btn" class="sim-btn reset">
-                        <span>↺</span> Reset to Zero
+                        <span>↺</span> Reset to Defaults
                     </button>
                 </div>
             </div>
@@ -176,6 +176,8 @@
                 <button class="save-load-btn" id="saveCurrentBtn">💾 Save Current Configuration</button>
                 <button class="save-load-btn load" id="loadDefaultBtn">📥 Load Default Configuration</button>
                 <button class="save-load-btn delete" id="clearAllBtn">🗑️ Clear All Saved</button>
+                <button class="save-load-btn" id="exportConfigBtn">📤 Export Current</button>
+                <button class="save-load-btn load" id="importConfigBtn">📥 Import Configuration</button>
             </div>
             
             <div class="saved-configs" id="savedConfigsList">
@@ -302,6 +304,12 @@
             </div>
         </div>
     </div>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scrollToTopBtn" style="display: none;">↑</button>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="importFileInput" accept=".json" style="display: none;">
 
     <script src="script.js" defer></script>
 </body>

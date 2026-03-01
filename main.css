@@ -362,6 +362,16 @@ input[type="range"]::-webkit-slider-thumb {
     color: white;
     margin-top: 8px;
     width: 100%;
+    cursor: pointer;
+}
+
+.unit-select:hover {
+    border-color: #00b4db;
+}
+
+.unit-select option {
+    background-color: #1a237e;
+    color: white;
 }
 
 .calc-buttons {
@@ -415,6 +425,10 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 0.9rem;
     color: #e0e0e0;
     line-height: 1.6;
+}
+
+#calculationSteps strong {
+    color: #00b4db;
 }
 
 /* Split ring commutator section */
@@ -537,8 +551,16 @@ input[type="range"]::-webkit-slider-thumb {
     background: linear-gradient(to right, #ff4800, #e73010);
 }
 
+.commutator-btn.stop:hover {
+    box-shadow: 0 5px 15px rgba(255, 72, 0, 0.4);
+}
+
 .commutator-btn.reset {
     background: linear-gradient(to right, #ff416c, #ff4b2b);
+}
+
+.commutator-btn.reset:hover {
+    box-shadow: 0 5px 15px rgba(255, 65, 108, 0.4);
 }
 
 /* Save/Load section */
@@ -641,9 +663,29 @@ input[type="range"]::-webkit-slider-thumb {
     color: white;
 }
 
+.config-action-btn.load:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+}
+
+.config-action-btn.export {
+    background: #4CAF50;
+    color: white;
+}
+
+.config-action-btn.export:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
 .config-action-btn.delete {
     background: #ff416c;
     color: white;
+}
+
+.config-action-btn.delete:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 65, 108, 0.4);
 }
 
 /* Save Modal */
@@ -719,15 +761,20 @@ input[type="range"]::-webkit-slider-thumb {
     color: white;
 }
 
+.save-modal-btn.save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
 .save-modal-btn.cancel {
     background: rgba(255, 255, 255, 0.1);
     color: white;
     border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
-.save-modal-btn:hover {
+.save-modal-btn.cancel:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 5px 15px rgba(255, 255, 255, 0.2);
 }
 
 /* Theory section */
@@ -901,5 +948,13 @@ input[type="range"]::-webkit-slider-thumb {
     .startup-btn {
         padding: 20px;
         min-height: 150px;
+    }
+    
+    .scroll-to-top {
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+        bottom: 20px;
+        right: 20px;
     }
 }
